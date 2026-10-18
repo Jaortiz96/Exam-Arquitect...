@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analizador de representación de datos</title>
+  <style>
+    :root {
+      --papel: #eef1f5;
+      --panel: #ffffff;
+      --tinta: #1c2433;
+      --tinta-suave: #556074;
+      --linea: #c9d1de;
+      --bit: #1f4fd8;
+      --bit-texto: #ffffff;
+      --error: #a4261c;
+      --error-fondo: #fcecea;
+      --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+      --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --papel: #121722;
+        --panel: #1a2130;
+        --tinta: #e8ecf4;
+        --tinta-suave: #9aa6bb;
+        --linea: #38425a;
+        --bit: #6b90ff;
+        --bit-texto: #0c1226;
+        --error: #ff9b91;
+        --error-fondo: #3a1d1b;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--papel); }
+    body {
+      margin: 0;
+      color: var(--tinta);
+      background: var(--papel);
+      font: 1rem/1.55 var(--sans);
+    }
+    main { max-width: 56rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+    h1 {
+      margin: 0 0 .35rem;
+      font-size: clamp(1.7rem, 4vw, 2.4rem);
+      line-height: 1.1;
+      letter-spacing: -.02em;
+      font-weight: 800;
+    }
+    .intro { margin: 0 0 2rem; max-width: 40rem; color: var(--tinta-suave); }
+    section.panel {
+      background: var(--panel);
+      border: 1px solid var(--linea);
+      border-radius: 6px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    h2 { margin: 0 0 .25rem; font-size: 1.3rem; letter-spacing: -.01em; }
+    .ayuda { margin: 0 0 1.1rem; color: var(--tinta-suave); font-size: .95rem; }
+    form { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+    .campo { display: flex; flex-direction: column; gap: .3rem; }
+    .campo.crece { flex: 1 1 14rem; }
+    label { font-weight: 600; font-size: .95rem; }
+    input[type="text"], select {
+      font: 1.05rem var(--mono);
+      color: var(--tinta);
+      background: var(--papel);
+      border: 1.5px solid var(--linea);
+      border-radius: 4px;
+      padding: .6rem .7rem;
+      min-height: 2.9rem;
+      width: 100%;
+    }
+    select { font-family: var(--sans); }
+    input[aria-invalid="true"] { border-color: var(--error); }
+    :focus-visible { outline: 3px solid var(--bit); outline-offset: 2px; }
+    button {
+      font: 600 1rem var(--sans);
+      color: var(--bit-texto);
+      background: var(--bit);
+      border: 0;
+      border-radius: 4px;
+      padding: 0 1.4rem;
+      min-height: 2.9rem;
+      margin-top: 1.55rem;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.08); }
+    .error {
+      flex-basis: 100%;
+      margin: 0;
+      padding: .7rem .9rem;
+      border-left: 4px solid var(--error);
+      background: var(--error-fondo);
+      color: var(--error);
+      border-radius: 0 4px 4px 0;
+      font-weight: 500;
+    }
+    .resultado { margin-top: 1.6rem; padding-top: 1.4rem; border-top: 1px solid var(--linea); }
+
+    /* Los bits: el elemento protagonista */
+    .bytes { display: flex; flex-wrap: wrap; gap: 1.1rem; margin: 0 0 .6rem; padding: 0; list-style: none; }
+    .byte { display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+    .byte .celdas { display: flex; gap: 3px; }
+    .bit {
+      width: 1.75rem; height: 2.3rem;
+      display: grid; place-items: center;
+      font: 700 1.05rem var(--mono);
+      border: 1.5px solid var(--tinta);
+      border-radius: 3px;
+      color: var(--tinta);
+    }
+    .bit.uno { background: var(--bit); border-color: var(--bit); color: var(--bit-texto); }
+    .bit.relleno { border-style: dashed; border-color: var(--linea); color: var(--tinta-suave); }
+    .byte .hex { font: .85rem var(--mono); color: var(--tinta-suave); }
+    .leyenda { margin: 0 0 1.4rem; font-size: .9rem; color: var(--tinta-suave); }
+
+    dl.datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem 1.5rem; margin: 0; }
+    dl.datos div { min-width: 0; }
+    dt { font-size: .9rem; color: var(--tinta-suave); }
+    dd { margin: 0; font: 600 1.25rem var(--mono); overflow-wrap: anywhere; }
+    dd small { font: 500 .85rem var(--sans); color: var(--tinta-suave); }
+
+    .tabla-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .98rem; }
+    caption { text-align: left; padding-bottom: .6rem; color: var(--tinta-suave); }
+    th, td { text-align: left; padding: .5rem .8rem; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+    th { font-weight: 600; }
+    td.car { font: 700 1.3rem var(--mono); }
+    td.car small { font: 500 .85rem var(--sans); color: var(--tinta-suave); }
+    td.mono { font-family: var(--mono); }
+    footer { color: var(--tinta-suave); font-size: .9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Analizador de representación de datos</h1>
+  <p class="intro">
+    Convierte un número entre bases y mira cuántos bits y bytes ocupa. También
+    puedes revisar cómo se codifica un texto en Unicode y en UTF-8.
+  </p>
+
+  <section class="panel" id="numero" aria-labelledby="titulo-numero">
+    <h2 id="titulo-numero">Convertir un número</h2>
+    <p class="ayuda">Valores permitidos: de 0 a {{ valor_maximo }}.</p>
+
+    <form method="post" action="#numero" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="numero">
+
+      <div class="campo crece">
+        <label for="id_numero">Número</label>
+        <input type="text" id="id_numero" name="numero"
+               value="{{ form_numero.numero.value|default_if_none:'' }}"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               {% if form_numero.numero.errors %}aria-invalid="true" aria-describedby="error-numero"{% endif %}>
+      </div>
+
+      <div class="campo">
+        <label for="id_base">Base de origen</label>
+        {{ form_numero.base }}
+      </div>
+
+      <button type="submit">Convertir</button>
+
+      {% for error in form_numero.numero.errors %}
+        <p class="error" id="error-numero" role="alert">{{ error }}</p>
+      {% endfor %}
+      {% for error in form_numero.base.errors %}
+        <p class="error" role="alert">{{ error }}</p>
+      {% endfor %}
+    </form>
+
+    {% if resultado %}
+    <div class="resultado" aria-live="polite">
+      <ul class="bytes" aria-label="Binario completado a {{ resultado.bytes_necesarios }} byte{{ resultado.bytes_necesarios|pluralize }}">
+        {% for byte in resultado.bytes_binarios %}
+        <li class="byte">
+          <span class="celdas">
+            {% for bit, relleno in byte.celdas %}<span class="bit{% if bit == '1' %} uno{% endif %}{% if relleno %} relleno{% endif %}">{{ bit }}</span>{% endfor %}
+          </span>
+          <span class="hex">0x{{ byte.hex }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="leyenda">Los bits con borde punteado son ceros de relleno hasta completar el byte.</p>
+
+      <dl class="datos">
+        <div><dt>Decimal</dt><dd>{{ resultado.decimal }}</dd></div>
+        <div><dt>Binario <small>({{ resultado.bits_totales }} bits)</small></dt><dd>{{ resultado.binario_agrupado }}</dd></div>
+        <div><dt>Octal</dt><dd>{{ resultado.octal }}</dd></div>
+        <div><dt>Hexadecimal</dt><dd>{{ resultado.hexadecimal }}</dd></div>
+        <div><dt>Bits significativos</dt><dd>{{ resultado.bits_significativos }}</dd></div>
+        <div><dt>Bytes necesarios</dt><dd>{{ resultado.bytes_necesarios }}</dd></div>
+      </dl>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="panel" id="texto" aria-labelledby="titulo-texto">
+    <h2 id="titulo-texto">Analizar un texto</h2>
+    <p class="ayuda">Hasta {{ max_caracteres }} caracteres. Prueba con letras como ñ o á para ver cuántos bytes ocupan en UTF-8.</p>
+
+    <form method="post" action="#texto" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="texto">
+
+      <div class="campo crece">
+        <label for="id_texto">Texto</label>
+        <input type="text" id="id_texto" name="texto"
+               value="{{ form_texto.texto.value|default_if_none:'' }}"
+               autocomplete="off" spellcheck="false"
+               {% if form_texto.texto.errors %}aria-invalid="true" aria-describedby="error-texto"{% endif %}>
+      </div>
+
+      <button type="submit">Analizar</button>
+
+      {% for error in form_texto.texto.errors %}
+        <p class="error" id="error-texto" role="alert">{{ error }}</p>
+      {% endfor %}
+    </form>
+
+    {% if filas %}
+    <div class="resultado tabla-scroll" aria-live="polite">
+      <table>
+        <caption>{{ filas|length }} carácter{{ filas|length|pluralize:",es" }} y {{ total_bytes }} byte{{ total_bytes|pluralize }} en UTF-8</caption>
+        <thead>
+          <tr>
+            <th scope="col">Carácter</th>
+            <th scope="col">Decimal</th>
+            <th scope="col">Punto de código</th>
+            <th scope="col">Hexadecimal</th>
+            <th scope="col">Bytes UTF-8</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for fila in filas %}
+          <tr>
+            <td class="car">{% if fila.visible == fila.caracter %}{{ fila.caracter }}{% else %}<small>{{ fila.visible }}</small>{% endif %}</td>
+            <td class="mono">{{ fila.decimal }}</td>
+            <td class="mono">{{ fila.punto_codigo }}</td>
+            <td class="mono">{{ fila.hexadecimal }}</td>
+            <td class="mono">{{ fila.bytes_utf8 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
+  <footer>Hecho con Python 3.12 y Django, listo para ejecutarse en un contenedor Docker.</footer>
+</main>
+</body>
+</html>
